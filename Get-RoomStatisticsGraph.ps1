@@ -91,7 +91,9 @@ Foreach ($MBX in $Rooms)
 
 	# Example for One Mailbox
 	$PrimarySMTPAddress = "postmaster@icewolf.ch"
-	$CalendarItems = Get-MgUserEvent -UserId $PrimarySMTPAddress
+	$CalendarItems = Get-MgUserEvent -UserId $PrimarySMTPAddress -Filter "start/dateTime ge '$startdate' and end/dateTime lt '$Enddate'"
+	#$CalendarItems = Get-MgUserEvent -UserId $PrimarySMTPAddress -Filter "start/dateTime ge '2023-01-01T00:00' and end/dateTime lt '2023-12-31T23:59'"
+	#https://graph.microsoft.com/v1.0/users/a.bohren@icewolf.ch/calendar/events?start/dateTime ge '2023-01-01T00:00' and end/dateTime lt '2023-12-31T23:59'
 
 	If ($Null -ne $CalendarItems)
 	{
