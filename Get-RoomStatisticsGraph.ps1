@@ -22,7 +22,7 @@ The Output will saved to a CSV File
 param (
     [Parameter(Mandatory=$true)][DateTime]$StartDate,
     [Parameter(Mandatory=$true)][DateTime]$EndDate,
-	[Parameter(Mandatory=$false)][Array]$Mailboxes
+	[Parameter(Mandatory=$false)][String]$Mailbox
 	
 )
 
@@ -40,7 +40,7 @@ $CertificateThumbprint = "07EFF3918F47995EB53B91848F69B5C0E78622FD" #O365Powersh
 $ConnInfo  = Get-ConnectionInformation
 If ($Null -eq $ConnInfo) {
 	Write-Host "Connect to Exchange Online" -ForegroundColor green
-    Connect-ExchangeOnline
+    Connect-ExchangeOnline ShowBanner:$false
 	#Connect-ExchangeOnline -CertificateThumbprint $CertificateThumbprint -AppID $AppID -Organization $TenantId	
 }Else {
     Write-Host "Connection to Exchange Online already exists" -ForegroundColor yellow
@@ -50,20 +50,25 @@ If ($Null -eq $ConnInfo) {
 ###############################################################################
 # Connect to Microsoft Graph
 ###############################################################################
-Connect-MgGraph -Scopes Calendars.Read
-#Connect-MgGraph -AppId $AppID -CertificateThumbprint $CertificateThumbprint -TenantId $TenantId
+#Connect-MgGraph -Scopes Calendars.Read
+Connect-MgGraph -AppId $AppID -CertificateThumbprint $CertificateThumbprint -TenantId $TenantId
 
 $ScriptStart = Get-Date 
 
 ###############################################################################
 # Getting Room Mailboxes
 ###############################################################################
-Write-Host "Getting Room Mailboxes"
-$Rooms = Get-Mailbox -RecipientTypeDetails RoomMailbox -ResultSize Unlimited
+If ($Null -eq $Mailbox)
+{
+	Write-Host "Getting Room Mailboxes"
+	$Mailboxes = Get-Mailbox -RecipientTypeDetails RoomMailbox -ResultSize Unlimited
+} else {
+	$Mailboxes = Get-Mailbox -Identity $Mailbox
+}
 
 #Loop through the Room Mailboxes
 $i = 0
-Foreach ($MBX in $Rooms)
+Foreach ($MBX in $Mailboxes)
 {
 	#Do for each Room
 	$i = $i + 1
@@ -78,9 +83,9 @@ Foreach ($MBX in $Rooms)
 	$WorkingHoursStartTime = ($MBX | Get-mailboxCalendarConfiguration -WarningAction SilentlyContinue).WorkingHoursStartTime 
 	$WorkingHoursEndTime = ($MBX | Get-mailboxCalendarConfiguration -WarningAction SilentlyContinue).WorkingHoursEndTime 
 
-	if($WorkingDays -eq "Weekdays"){$WorkingDays = "Monday,Tuesday,Wednesday,Thursday,Friday"}
-	if($WorkingDays -eq "AllDays"){$WorkingDays = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"}
-	if($WorkingDays -eq "WeekEndDays"){$WorkingDays = "Saturday,Sunday"}
+	if($WorkingDays -eq "Weekdays"){$WorkingDaysArray = "Monday,Tuesday,Wednesday,Thursday,Friday"}
+	if($WorkingDays -eq "AllDays"){$WorkingDaysArray = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"}
+	if($WorkingDays -eq "WeekEndDays"){$WorkingDaysArray = "Saturday,Sunday"}
 
 	#Variables for Calendar
 	#$offset = 0
@@ -93,10 +98,10 @@ Foreach ($MBX in $Rooms)
 	$rptcollection = @()
 
 	# Example for One Mailbox
-	$StartDate = "2023-01-01T00:00"
-	$EndDate = "2023-12-13T23:59"
-	$PrimarySMTPAddress = "postmaster@icewolf.ch"
-	$CalendarItems = Get-MgUserEvent -UserId $PrimarySMTPAddress -Filter "start/dateTime ge '$startdate' and end/dateTime lt '$Enddate'"
+	#$StartDate = "2023-01-01T00:00"
+	#$EndDate = "2023-12-13T23:59"
+	#$PrimarySMTPAddress = "postmaster@icewolf.ch"
+	$CalendarItems = Get-MgUserEvent -UserId $PrimarySMTPAddress -Filter "start/dateTime ge '$StartDate' and end/dateTime lt '$EndDate'"
 	#$CalendarItems = Get-MgUserEvent -UserId $PrimarySMTPAddress -Filter "start/dateTime ge '2023-01-01T00:00' and end/dateTime lt '2023-12-31T23:59'"
 	#https://graph.microsoft.com/v1.0/users/a.bohren@icewolf.ch/calendar/events?start/dateTime ge '2023-01-01T00:00' and end/dateTime lt '2023-12-31T23:59'
 
@@ -113,6 +118,9 @@ Foreach ($MBX in $Rooms)
 		#Loop through the Calendar Items
 		foreach ($Appointment in $CalendarItems)
 		{
+			#Subject
+			Write-Verbose "Subject: $Appointment.Subject"
+
 			#Increase Meeting Count
 			$MeetingCount = $MeetingCount + 1
 			
@@ -120,6 +128,7 @@ Foreach ($MBX in $Rooms)
 			If ($Appointment.Type -eq "seriesMaster")
 			{
 				$RecurringMeetingCount = $RecurringMeetingCount +1
+				Write-Verbose "Recurring Meeting"
 			}
 
 			# Top Organizers
@@ -148,90 +157,74 @@ Foreach ($MBX in $Rooms)
 			If ($Appointment.IsOnlineMeeting -eq $true)
 			{
 				$OnlineMeetingCount = $OnlineMeetingCount + 1
+				Write-Verbose "IsOnlineMeeting"
 			}
 			
 			#All Day Event
 			if($Appointment.IsAllDay -eq $true)
 			{
 				#All Day Event
-				$Duration = New-TimeSpan -Start $WorkingHoursStartTime -End $WorkingHoursEndTime
+				$TotalDuration = $TotalDuration.add((New-Timespan -Start $WorkingHoursStartTime -End $WorkingHoursEndTime))
 				$AllDayMeetingCount = $AllDayMeetingCount + 1
+				Write-Verbose "IsAllDay"
 			} else {
 
 				#Not an All Day Event
 				[DateTime]$AppointmentStart = $Appointment.Start.DateTime
 				[DateTime]$AppointmentEnd = $Appointment.End.DateTime
 
-				if($Appointment.Duration)
+				#Only Count if Start and End is in WorkingDays
+				if($WorkingDaysArray.split(",") -contains $AppointmentStart.dayofweek -and $WorkingDaysArray.split(",") -contains $AppointmentEnd.dayofweek)
 				{
-					if($WorkingDays.split(",") -contains ($apApointment.start).dayofweek)
-					{
-						$TotalDuration = $TotalDuration.add((new-timespan -End $apApointment.End.tolongTimeString() -start $apApointment.start.tolongTimeString()))
-
-						#Only count to inPolicy if within the workinghours time
-						if($apApointment.start.tolongTimeString() -lt $WorkingHoursStartTime)
-						{   
-							$tStart = $WorkingHoursStartTime.ToString()
-						} else {
-						   $tStart = $apApointment.start.ToLongTimeString()
-						}
-
-						if($apApointment.End.tolongTimeString() -gt $WorkingHoursEndTime)
-						{   
-							$tEnd = $WorkingHoursEndTime.ToString()
-						} else {
-							$tEnd = $apApointment.End.ToLongTimeString()
-						}
-
-					   $Duration = New-TimeSpan -Start $tStart -End $tEnd
-					   $inPolicy = $inPolicy.add($Duration)
-				   }
-			   }
-			} 
-
-			#Calculate to total hours of bookable time between the 2 dates
-			for ($d=$Startdate;$d -le $Enddate;$d=$d.AddDays(1))
-			{
-				if ($WorkingDays.split(",") -contains $d.DayOfWeek) 
-				{
-					$BookableTime += $WorkingHoursEndTime - $WorkingHoursStartTime
+					$TotalDuration = $TotalDuration.add((new-timespan -Start $AppointmentStart -End $AppointmentEnd))					
 				}
 			}
+			Write-Verbose "TotalDurationHours: $TotalDuration.Hours"
+		}
 
-			#Save result....
-			#ReportStartDate;ReportEndDate;RoomEmailaddress;RoomDisplayName;MeetingCount;OnlineMeetingCount;RecurringMeetingCount;AllDayMeetingCount;
-			#TotalMinutes;TotalAttandees;AvgEventsPerDay;AvgAttendees;MostActiveMeetingOrganizer
-			$rptobj = "" | Select-Object ReportStartDate,ReportEndDate,RoomEmail,DisplayName,WorkingHoursStartTime,WorkingHoursEndTime,MeetingCount,OnlineMeetingCount,RecurringMeetingCount,AllDayMeetingCount,TotalDuration,BookableTime,BookedPercentage,TopOrganizers,TopAttandees
-			$rptobj.ReportStartDate = $StartDate
-			$rptobj.ReportEndDate = $EndDate
-			$rptobj.RoomEmail = $MBX.PrimarySMTPAddress
-			$rptobj.DisplayName = $MBX.DisplayName
-			#$rptobj.WorkingDays = $WorkingDays
-			$rptobj.WorkingHoursStartTime = $WorkingHoursStartTime
-			$rptobj.WorkingHoursEndTime = $WorkingHoursEndTime
-			$rptobj.MeetingCount = $MeetingCount
-			$rptobj.OnlineMeetingCount = $OnlineMeetingCount
-			$rptobj.RecurringMeetingCount = $RecurringMeetingCount
-			$rptobj.AllDayMeetingCount = $AllDayMeetingCount			
-			$rptobj.inPolicy =  '{0:f2}' -f ($inPolicy.TotalHours)
-			$rptobj."Out-Of-Policy" =  '{0:f2}' -f (($TotalDuration - $inPolicy).TotalHours)
-			$rptobj.TotalDuration =  '{0:f2}' -f ($TotalDuration.TotalHours)
-			$rptobj.BookableTime =  '{0:f2}' -f ($BookableTime.TotalHours)
-			$rptobj.BookedPercentage =  '{0:f2}' -f (($inPolicy.TotalHours / $BookableTime.TotalHours) * 100)
-			$rptobj.TopOrganizers = [String] ($topOrganizers.GetEnumerator() | Sort-Object -Property Value -Descending | Select-Object -First 10 | ForEach-Object {"$($_.Key) ($($_.Value)),"})
-			$rptobj.TopAttandees =  [String] ($topAttendees.GetEnumerator() | Sort-Object -Property Value -Descending | Select-Object -First 10 | ForEach-Object {"$($_.Key) ($($_.Value)),"})
-			$rptcollection += $rptobj
+		#Calculate to total hours of bookable time between the 2 dates
+		for ($d=$Startdate;$d -le $Enddate;$d=$d.AddDays(1))
+		{
+			if ($WorkingDaysArray.split(",") -contains $d.DayOfWeek) 
+			{
+				$BookableTime += $WorkingHoursEndTime - $WorkingHoursStartTime
 			}
 		}
+		Write-Verbose "BookableTime: $BookableTime.Hours"
+		
+
+		#Save result....
+		#ReportStartDate;ReportEndDate;RoomEmailaddress;RoomDisplayName;MeetingCount;OnlineMeetingCount;RecurringMeetingCount;AllDayMeetingCount;TotalMinutes;TotalAttandees;AvgEventsPerDay;AvgAttendees;MostActiveMeetingOrganizer
+		$rptobj = "" | Select-Object ReportStartDate,ReportEndDate,RoomEmail,DisplayName,WorkingDays,WorkingHoursStartTime,WorkingHoursEndTime,MeetingCount,OnlineMeetingCount,RecurringMeetingCount,AllDayMeetingCount,TotalDuration,BookableTime,BookedPercentage,TopOrganizers,TopAttandees
+		$rptobj.ReportStartDate = $StartDate
+		$rptobj.ReportEndDate = $EndDate
+		$rptobj.RoomEmail = $MBX.PrimarySMTPAddress
+		$rptobj.DisplayName = $MBX.DisplayName
+		$rptobj.WorkingDays = $WorkingDays
+		$rptobj.WorkingHoursStartTime = $WorkingHoursStartTime
+		$rptobj.WorkingHoursEndTime = $WorkingHoursEndTime
+		$rptobj.MeetingCount = $MeetingCount
+		$rptobj.OnlineMeetingCount = $OnlineMeetingCount
+		$rptobj.RecurringMeetingCount = $RecurringMeetingCount
+		$rptobj.AllDayMeetingCount = $AllDayMeetingCount			
+		#$rptobj.inPolicy =  '{0:f2}' -f ($inPolicy.TotalHours)
+		#$rptobj."Out-Of-Policy" =  '{0:f2}' -f (($TotalDuration - $inPolicy).TotalHours)
+		$rptobj.TotalDuration =  '{0:f2}' -f ($TotalDuration.TotalHours)
+		$rptobj.BookableTime =  '{0:f2}' -f ($BookableTime.TotalHours)
+		$rptobj.BookedPercentage =  '{0:f2}' -f (($TotalDuration.TotalHours / $BookableTime.TotalHours) * 100)
+		$rptobj.TopOrganizers = [String] ($topOrganizers.GetEnumerator() | Sort-Object -Property Value -Descending | Select-Object -First 10 | ForEach-Object {"$($_.Key) ($($_.Value)),"})
+		$rptobj.TopAttandees =  [String] ($topAttendees.GetEnumerator() | Sort-Object -Property Value -Descending | Select-Object -First 10 | ForEach-Object {"$($_.Key) ($($_.Value)),"})
+		$rptcollection += $rptobj
+		}
 	}
+	
 
 	$rptcollection
 
-
-
+#Script Run Time
 $ScriptEnd = Get-Date 
 $ScriptDuration = New-TimeSpan $ScriptStart -End $ScriptEnd
-
+Write-Host "ScriptDuration: $ScriptDuration.TotalMinutes"
 
 ###############################################################################
 # Export Results
