@@ -5,7 +5,7 @@
 # Prerequisits
 # - Exchange Online Powershell V3 (Module ExchangeOnlineManagement)
 # - Account with Exchange Administrator Role / Exchange Recipient
-# - Graph.Calendar Permissions for the Room Mailboxes
+# - Graph Calendars.Read Permissions for the Room Mailboxes
 ##############################################################################
 <#
 .SYNOPSIS
@@ -14,25 +14,64 @@ Gather statistics regarding meeting room usage
 .DESCRIPTION
 This script uses the Exchange Online Management PowerShell Module and Microsoft Graph to connect to one or more Meeting Rooms and gather statistics regarding their usage between to specific dates.
 The Output will saved to a CSV File
- 
+
+.PARAMETER StartDate
+The Start Date for the Report
+
+.PARAMETER StartDate
+The End Date for the Report
+
+.PARAMETER Mailbox
+A specifix Mailbox to run the Report against
+
+.PARAMETER AppID
+An AzureAD App that has the "Calendars.Read" Permission. Requires also the "CertificateThumbprint" and "TenantId" Parameter.
+
+.PARAMETER CertificateThumbprint
+The Certificate used for Authenticate against the AzureAD App specified with the AppID Parameter.
+
+.PARAMETER TenantId
+The TenantId of the Tenant where the Azure AD App is registered.
+Examples: 
+-TenantID <tenant.onmicrosoft.com>
+-TenantId <GUID of the Tenant>
+
 .EXAMPLE
- .\Get-RoomStatisticsGraph.ps1 -Startdate "01/01/2020" -EndDate "12/31/2020" [-Mailboxes <ArrayOfEmailAddresses>] 
+ .\Get-RoomStatisticsGraph.ps1 -Startdate "01/01/2023" -EndDate "12/31/2023" [-Mailbox <ArrayOfEmailAddresses>] 
+
+ .\Get-RoomStatisticsGraph.ps1 -Startdate "01/01/2023" -EndDate "12/31/2023" [-Mailbox <ArrayOfEmailAddresses>] [-AppID <AppID>] [-CertificateThumbprint <CertificateThumbprint>] [-TenantId <TenantId>]
 #>
 
 param (
-    [Parameter(Mandatory=$true)][DateTime]$StartDate,
-    [Parameter(Mandatory=$true)][DateTime]$EndDate,
-	[Parameter(Mandatory=$false)][String]$Mailbox
+	[Parameter(Mandatory=$true)][DateTime]$StartDate,
+	[Parameter(Mandatory=$true)][DateTime]$EndDate,
+	[Parameter(Mandatory=$false)][String]$Mailbox,
+	[Parameter(Mandatory=$false)][String]$AppID,
+	[Parameter(Mandatory=$false)][String]$CertificateThumbprint,
+	[Parameter(Mandatory=$false)][String]$TenantId
 	
 )
 
 ###############################################################################
 # Variables
 ###############################################################################
-$TenantId = "icewolfch.onmicrosoft.com"
-$Scope = "https://graph.microsoft.com/.default" 
-$AppID = "c1a5903b-cd73-48fe-ac1f-e71bde968412" #DelegatedMail
-$CertificateThumbprint = "07EFF3918F47995EB53B91848F69B5C0E78622FD" #O365Powershell3.cer
+#$TenantId = "icewolfch.onmicrosoft.com"
+#$AppID = "c1a5903b-cd73-48fe-ac1f-e71bde968412" #DelegatedMail
+#$CertificateThumbprint = "07EFF3918F47995EB53B91848F69B5C0E78622FD" #O365Powershell3.cer
+
+###############################################################################
+# Connect to Microsoft Graph
+###############################################################################
+If ($Null -eq $AppID)
+{
+	#Delegated Authentication
+	Connect-MgGraph -Scopes Calendars.Read
+} else {
+	#App Authentication with Certificate
+	Connect-MgGraph -AppId $AppID -CertificateThumbprint $CertificateThumbprint -TenantId $TenantId
+}
+
+$ScriptStart = Get-Date 
 
 ###############################################################################
 # Connect to Exchange Online
@@ -40,20 +79,10 @@ $CertificateThumbprint = "07EFF3918F47995EB53B91848F69B5C0E78622FD" #O365Powersh
 $ConnInfo  = Get-ConnectionInformation
 If ($Null -eq $ConnInfo) {
 	Write-Host "Connect to Exchange Online" -ForegroundColor green
-    Connect-ExchangeOnline ShowBanner:$false
-	#Connect-ExchangeOnline -CertificateThumbprint $CertificateThumbprint -AppID $AppID -Organization $TenantId	
+	Connect-ExchangeOnline ShowBanner:$false
 }Else {
-    Write-Host "Connection to Exchange Online already exists" -ForegroundColor yellow
+	Write-Host "Connection to Exchange Online already exists" -ForegroundColor yellow
 }
-
-
-###############################################################################
-# Connect to Microsoft Graph
-###############################################################################
-#Connect-MgGraph -Scopes Calendars.Read
-Connect-MgGraph -AppId $AppID -CertificateThumbprint $CertificateThumbprint -TenantId $TenantId
-
-$ScriptStart = Get-Date 
 
 ###############################################################################
 # Getting Room Mailboxes
@@ -77,7 +106,6 @@ Foreach ($MBX in $Mailboxes)
 
 	Write-Host "Working on: $DisplayName [$i]"
 	Write-Host "Working on: $PrimarySMTPAddress [$i]"
-	#$Duration = (New-TimeSpan -Start ($start) -End (Get-Date)).totalseconds
 
 	$WorkingDays = ($MBX | Get-MailboxCalendarConfiguration -WarningAction SilentlyContinue).WorkDays.ToString() 
 	$WorkingHoursStartTime = ($MBX | Get-mailboxCalendarConfiguration -WarningAction SilentlyContinue).WorkingHoursStartTime 
@@ -88,7 +116,6 @@ Foreach ($MBX in $Mailboxes)
 	if($WorkingDays -eq "WeekEndDays"){$WorkingDaysArray = "Saturday,Sunday"}
 
 	#Variables for Calendar
-	#$offset = 0
 	$MeetingCount = 0
 	$OnlineMeetingCount = 0
 	$RecurringMeetingCount = 0
@@ -110,8 +137,6 @@ Foreach ($MBX in $Mailboxes)
 		#Calendar Items found		
 		Write-Verbose "CalendarItems found: $($CalendarItems.Count)"
 
-		#$InPolicy = New-TimeSpan
-		#$OutOfPolicy = New-TimeSpan
 		$TotalDuration = New-timespan
 		$BookableTime = New-TimeSpan
 
@@ -192,9 +217,7 @@ Foreach ($MBX in $Mailboxes)
 		}
 		Write-Verbose "BookableTime: $BookableTime.Hours"
 		
-
-		#Save result....
-		#ReportStartDate;ReportEndDate;RoomEmailaddress;RoomDisplayName;MeetingCount;OnlineMeetingCount;RecurringMeetingCount;AllDayMeetingCount;TotalMinutes;TotalAttandees;AvgEventsPerDay;AvgAttendees;MostActiveMeetingOrganizer
+		#Save result
 		$rptobj = "" | Select-Object ReportStartDate,ReportEndDate,RoomEmail,DisplayName,WorkingDays,WorkingHoursStartTime,WorkingHoursEndTime,MeetingCount,OnlineMeetingCount,RecurringMeetingCount,AllDayMeetingCount,TotalDuration,BookableTime,BookedPercentage,TopOrganizers,TopAttandees
 		$rptobj.ReportStartDate = $StartDate
 		$rptobj.ReportEndDate = $EndDate
@@ -207,8 +230,6 @@ Foreach ($MBX in $Mailboxes)
 		$rptobj.OnlineMeetingCount = $OnlineMeetingCount
 		$rptobj.RecurringMeetingCount = $RecurringMeetingCount
 		$rptobj.AllDayMeetingCount = $AllDayMeetingCount			
-		#$rptobj.inPolicy =  '{0:f2}' -f ($inPolicy.TotalHours)
-		#$rptobj."Out-Of-Policy" =  '{0:f2}' -f (($TotalDuration - $inPolicy).TotalHours)
 		$rptobj.TotalDuration =  '{0:f2}' -f ($TotalDuration.TotalHours)
 		$rptobj.BookableTime =  '{0:f2}' -f ($BookableTime.TotalHours)
 		$rptobj.BookedPercentage =  '{0:f2}' -f (($TotalDuration.TotalHours / $BookableTime.TotalHours) * 100)
@@ -218,7 +239,6 @@ Foreach ($MBX in $Mailboxes)
 		}
 	}
 	
-
 	$rptcollection
 
 #Script Run Time
