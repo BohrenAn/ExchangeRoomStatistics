@@ -87,7 +87,7 @@ If ($Null -eq $ConnInfo) {
 ###############################################################################
 # Getting Room Mailboxes
 ###############################################################################
-If ($Null -eq $Mailbox)
+If ($Mailbox -eq "")
 {
 	Write-Host "Getting Room Mailboxes"
 	$Mailboxes = Get-Mailbox -RecipientTypeDetails RoomMailbox -ResultSize Unlimited
@@ -244,7 +244,8 @@ Foreach ($MBX in $Mailboxes)
 #Script Run Time
 $ScriptEnd = Get-Date 
 $ScriptDuration = New-TimeSpan $ScriptStart -End $ScriptEnd
-Write-Host "ScriptDuration: $ScriptDuration.TotalMinutes"
+$ScriptDurationInMinutes = '{0:f2}' -f ($ScriptDuration.TotalMinutes)
+Write-Host "ScriptDuration: $ScriptDurationInMinutes (Minutes)" 
 
 ###############################################################################
 # Export Results
