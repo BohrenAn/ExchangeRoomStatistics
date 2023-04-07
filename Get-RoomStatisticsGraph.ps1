@@ -57,8 +57,8 @@ param (
 ###############################################################################
 $TenantId = "icewolfch.onmicrosoft.com"
 $Scope = "https://graph.microsoft.com/.default" 
-$AppID = "c1a5903b-cd73-48fe-ac1f-e71bde968412" #DelegatedMail
-$CertificateThumbprint = "07EFF3918F47995EB53B91848F69B5C0E78622FD" #O365Powershell3.cer
+$AppID = "fe8d0ffa-5f63-4dd6-b0ee-19ae62da4dcc" 
+$CertificateThumbprint = "BE6096887FDC1C12438E0477EABAB36953A3A26C"
 
 ###############################################################################
 # Connect to Exchange Online
