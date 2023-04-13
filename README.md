@@ -6,7 +6,9 @@ Prerequisits
 - Account with Exchange Administrator or Exchange Recipient Admin Role
 - Graph Permissions for Calendar.Read
 
-Get-RoomStatistics.ps1 -Startdate "01/01/2022" -EndDate "12/31/2022" [-Mailboxes <ArrayOfEmailAddresses>]
+``` posh
+Get-RoomStatisticsGraph.ps1 -Startdate "01/01/2022" -EndDate "12/31/2022" [-Mailboxes <ArrayOfEmailAddresses>]
+```
 
 # ExchangeRoomStatistics
 Version 1.0 - 21.07.2020 Andres Bohren - Initial Version
@@ -16,5 +18,8 @@ Prerequisits
 - EWS Managed API 2.2
 - Account with Exchange Administrator Role
 - EWS Account with Impersonation Permission
+- EWS Account with Basic Authentication
 
+``` posh
 Get-RoomStatistics.ps1 -Startdate "01/01/2020" -EndDate "12/31/2020"
+```
