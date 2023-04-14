@@ -107,5 +107,4 @@ If ($CreateAzureApplication)
 		RedirectUris = @($RedirectURI)
 	}
 	Update-MgApplication -ApplicationId $APPObjectID -IsFallbackPublicClient -PublicClient $params
-
 }
