@@ -17,11 +17,12 @@ If ($CreateAzureApplication)
 	#Connect-MgGraph
 	Disconnect-MgGraph -ErrorAction SilentlyContinue
 	Connect-MgGraph -Scopes "Application.Read.All","Application.ReadWrite.All","User.Read.All","AppRoleAssignment.ReadWrite.All"
-	Get-MgContext
+	$TenantId = (Get-MgContext).TenantId
 
 	#Create AAD Application
 	$AppName =  "RoomStatisticsGraph"
-	$App = New-MgApplication -DisplayName $AppName 
+	$App = New-MgApplication -DisplayName $AppName
+	$AppID = $App.AppId
 	$APPObjectID = $App.Id
 
 	#Create a Self Signed Certificate
@@ -64,9 +65,9 @@ If ($CreateAzureApplication)
 	}
 	
 	try {
-	Update-MgApplication -ApplicationId $APPObjectID  -KeyCredentials $keyCreds
+		Update-MgApplication -ApplicationId $APPObjectID  -KeyCredentials $keyCreds
 	} catch {
-	Write-Error $Error[0]
+		Write-Error $Error[0]
 	}
 
 	#Add Application Permissions
@@ -88,6 +89,8 @@ If ($CreateAzureApplication)
 	Update-MgApplication -ApplicationId $APPObjectID -BodyParameter $params
 
 	#Grant Permission
+	#Get-AzureADServicePrincipalOAuth2PermissionGrant
+	<#
 	$ServicePrincipal = Get-MgServicePrincipal -Filter "DisplayName eq 'RoomStatisticsGraph'"
 	$params = @{
 		PrincipalId = "bb6c9bfd-7426-40ea-9292-0013f75a7e85"
@@ -95,10 +98,14 @@ If ($CreateAzureApplication)
 		AppRoleId = "798ee544-9d2d-430c-a058-570e29e34338"
 	}
 	New-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $servicePrincipalId -BodyParameter $params
+	#>
+	
+	#Grants interactive Consent
+	$URL = "https://login.microsoftonline.com/$TenantId/adminconsent?client_id=$APPId"
+	Start-Process $URL
+
 
 	#Add Redirect URI
-	$App = Get-MgApplication -ApplicationId $APPObjectID -Property * 
-	$AppId = $App.AppId
 	$RedirectURI = @()
 	$RedirectURI += "https://login.microsoftonline.com/common/oauth2/nativeclient"
 	$RedirectURI += "msal" + $AppId + "://auth"
@@ -109,3 +116,5 @@ If ($CreateAzureApplication)
 	Update-MgApplication -ApplicationId $APPObjectID -IsFallbackPublicClient -PublicClient $params
 
 }
+	b27a8f8e-339a-4eb7-a234-f7e16f88daaf
+msalb27a8f8e-339a-4eb7-a234-f7e16f88daaf://auth
