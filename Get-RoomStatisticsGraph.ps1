@@ -67,10 +67,27 @@ $ConnInfo  = Get-ConnectionInformation -ErrorAction SilentlyContinue
 If ($Null -eq $ConnInfo) {
 	Write-Host "Connect to Exchange Online" -ForegroundColor green
     Connect-ExchangeOnline -ShowBanner:$false
-	#Connect-ExchangeOnline -CertificateThumbprint $CertificateThumbprint -AppID $AppID -Organization $TenantId	
+	#Connect-ExchangeOnline -CertificateThumbprint $CertificateThumbprint -AppID $AppID -Organization $TenantId
 }Else {
 	Write-Host "Connection to Exchange Online already exists" -ForegroundColor yellow
+	#Disconnect-ExchangeOnline -Confirm:$false
+	#Connect-ExchangeOnline -CertificateThumbprint $CertificateThumbprint -AppID $AppID -Organization $TenantId
 }
+
+
+###############################################################################
+# Connect MgGraph
+###############################################################################
+$MgContext  = Get-MgContext
+If ($Null -eq $MgContext) {
+	Write-Host "Connect to MicrosoftGraph" -ForegroundColor green
+	Connect-MgGraph -AppId $AppID -CertificateThumbprint $CertificateThumbprint -TenantId $TenantId
+}Else {
+	
+	Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
+	Connect-MgGraph -AppId $AppID -CertificateThumbprint $CertificateThumbprint -TenantId $TenantId
+}
+
 
 ###############################################################################
 # Getting Room Mailboxes
@@ -85,6 +102,7 @@ If ($Mailbox -eq "")
 
 #Loop through the Room Mailboxes
 $i = 0
+$rptcollection = @()
 Foreach ($MBX in $Mailboxes)
 {
 	#Do for each Room
@@ -95,9 +113,10 @@ Foreach ($MBX in $Mailboxes)
 	Write-Host "Working on: $DisplayName [$i]"
 	Write-Host "Working on: $PrimarySMTPAddress [$i]"
 
-	$WorkingDays = ($MBX | Get-MailboxCalendarConfiguration -WarningAction SilentlyContinue).WorkDays.ToString() 
-	$WorkingHoursStartTime = ($MBX | Get-mailboxCalendarConfiguration -WarningAction SilentlyContinue).WorkingHoursStartTime 
-	$WorkingHoursEndTime = ($MBX | Get-mailboxCalendarConfiguration -WarningAction SilentlyContinue).WorkingHoursEndTime 
+	Write-Verbose "Getting WorkingHours"
+	$WorkingDays = (Get-MailboxCalendarConfiguration -Identity $PrimarySMTPAddress -WarningAction SilentlyContinue).WorkDays.ToString() 
+	$WorkingHoursStartTime = (Get-MailboxCalendarConfiguration -Identity $PrimarySMTPAddress -WarningAction SilentlyContinue).WorkingHoursStartTime 
+	$WorkingHoursEndTime = (Get-mailboxCalendarConfiguration -Identity $PrimarySMTPAddress -WarningAction SilentlyContinue).WorkingHoursEndTime 
 
 	if($WorkingDays -eq "Weekdays"){$WorkingDaysArray = "Monday,Tuesday,Wednesday,Thursday,Friday"}
 	if($WorkingDays -eq "AllDays"){$WorkingDaysArray = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday"}
@@ -110,12 +129,13 @@ Foreach ($MBX in $Mailboxes)
 	$AllDayMeetingCount = 0
 	$topOrganizers = @{}
 	$topAttendees = @{}
-	$rptcollection = @()
+	
 
 	# Example for One Mailbox
 	#$StartDate = "2023-01-01T00:00"
 	#$EndDate = "2023-12-13T23:59"
 	#$PrimarySMTPAddress = "postmaster@icewolf.ch"
+	Write-Verbose "Getting Calendar Events"
 	$CalendarItems = Get-MgUserEvent -UserId $PrimarySMTPAddress -Filter "start/dateTime ge '$StartDate' and end/dateTime lt '$EndDate'"
 	#$CalendarItems = Get-MgUserEvent -UserId $PrimarySMTPAddress -Filter "start/dateTime ge '2023-01-01T00:00' and end/dateTime lt '2023-12-31T23:59'"
 	#https://graph.microsoft.com/v1.0/users/a.bohren@icewolf.ch/calendar/events?start/dateTime ge '2023-01-01T00:00' and end/dateTime lt '2023-12-31T23:59'
@@ -223,17 +243,25 @@ Foreach ($MBX in $Mailboxes)
 		$rptobj.BookedPercentage =  '{0:f2}' -f (($TotalDuration.TotalHours / $BookableTime.TotalHours) * 100)
 		$rptobj.TopOrganizers = [String] ($topOrganizers.GetEnumerator() | Sort-Object -Property Value -Descending | Select-Object -First 10 | ForEach-Object {"$($_.Key) ($($_.Value)),"})
 		$rptobj.TopAttandees =  [String] ($topAttendees.GetEnumerator() | Sort-Object -Property Value -Descending | Select-Object -First 10 | ForEach-Object {"$($_.Key) ($($_.Value)),"})
+
+		Write-Verbose "DEBUG: RPTOBJ"
+		$rptobj
+
+
 		$rptcollection += $rptobj
 		}
 	}
 	
+	Write-Host "DEBUG: ReportCollection"
 	$rptcollection
 
+<#
 #Script Run Time
 $ScriptEnd = Get-Date 
-$ScriptDuration = New-TimeSpan $ScriptStart -End $ScriptEnd
+$ScriptDuration = New-TimeSpan -Start $ScriptStart -End $ScriptEnd
 $ScriptDurationInMinutes = '{0:f2}' -f ($ScriptDuration.TotalMinutes)
 Write-Host "ScriptDuration: $ScriptDurationInMinutes (Minutes)" 
+#>
 
 ###############################################################################
 # Export Results
@@ -241,3 +269,4 @@ Write-Host "ScriptDuration: $ScriptDurationInMinutes (Minutes)"
 $Filename = "MeetingRoomStats_$((Get-Date).ToString('yyyyMMdd')).csv"
 Write-Host "Export CSV as $Filename"
 $rptcollection | Export-Csv $Filename -Encoding UTF8 -NoTypeInformation -delimiter ";"
+
