@@ -57,7 +57,7 @@ param (
 ###############################################################################
 $TenantId = "icewolfch.onmicrosoft.com"
 $Scope = "https://graph.microsoft.com/.default" 
-$AppID = "fe8d0ffa-5f63-4dd6-b0ee-19ae62da4dcc" 
+$AppID = "5c41bc77-618f-4acd-b15a-f167148d1b9d" 
 $CertificateThumbprint = "BE6096887FDC1C12438E0477EABAB36953A3A26C"
 
 ###############################################################################
@@ -66,7 +66,7 @@ $CertificateThumbprint = "BE6096887FDC1C12438E0477EABAB36953A3A26C"
 $ConnInfo  = Get-ConnectionInformation -ErrorAction SilentlyContinue
 If ($Null -eq $ConnInfo) {
 	Write-Host "Connect to Exchange Online" -ForegroundColor green
-    Connect-ExchangeOnline ShowBanner:$false
+    Connect-ExchangeOnline -ShowBanner:$false
 	#Connect-ExchangeOnline -CertificateThumbprint $CertificateThumbprint -AppID $AppID -Organization $TenantId	
 }Else {
 	Write-Host "Connection to Exchange Online already exists" -ForegroundColor yellow
