@@ -180,11 +180,58 @@ If ($CreateAzureApplication)
 ###############################################################################
 If ($DeleteAzureApplication)
 {
-	Write-Host "Deleting the Application is not yet implemented"
+	$AADApps = Get-MgApplication -ConsistencyLevel eventual -Count appCount -Search "DisplayName:$AppName"
+	If ($AADApps.Count -eq 1)
+	{
+		$AppID = $AADApps.AppId
+		$TenantID = $AADApps.PublisherDomain
 
-	#Remove Echange Online Management Role
-	#Remove Exchange Online Service Principal
-	#Remove AzureAD ServicePrincipal / Enterprise App
-	#Remove AzureAD Application
+		Write-Host "Deleting the Application"
 
+		#Remove Echange Online Management Role
+		## Check Exchange Online Management Role Assignment
+		Write-Verbose "Check Exchange Online Management Role Assignment"
+		$ExServicePrincipal = Get-ServicePrincipal | Where-Object {$_.AppId -eq "$AppID"} -ErrorAction SilentlyContinue
+		$ServiceId = $ExServicePrincipal.ServiceId
+		$MRA = Get-ManagementRoleAssignment  | Where-Object {$_.App -eq $ServiceId}
+		If ($MRA)
+		{
+			#Remove Exchange Online Management Role Assignment
+			Write-Verbose "Remove Exchange Online Management Role Assignment"
+			$MRA | Remove-ManagementRoleAssignment
+		} 
+		## Check Exchange Online RBAC Management Scope
+		Write-Verbose "Check Exchange Online RBAC Management Scope"		
+		$EXOManagementScope = Get-ManagementScope -Identity "$ManagementScopeName" -ErrorAction SilentlyContinue
+		If ($EXOManagementScope)
+		{
+			#Remove Exchange Online RBAC Management Scope
+			Write-Verbose "Remove Exchange Online RBAC Management Scope"
+			$EXOManagementScope | Remove-ManagementScope
+		}
+		
+		#Remove AzureAD ServicePrincipal / Enterprise App
+		##Check Serviceprincipal | Enterprise App
+		Write-Verbose "Check ServicePrincipal"	
+		$ServicePrincipalDetails = Get-MgServicePrincipal -ConsistencyLevel eventual -Search "DisplayName:$AppName"
+		If ($ServicePrincipalDetails)
+		{
+			#Service Principal | Enterprise App does exist
+			$MgServicePrincipalId = $ServicePrincipalDetails.Id
+			$ServicePrincipalDetails | Remove-MgServicePrincipal -ServicePrincipalId $MgServicePrincipalId
+		} else {
+			#Check Exchange Online Service Principal
+			$ExServicePrincipal = Get-ServicePrincipal | Where-Object {$_.AppId -eq "$AppID"} -ErrorAction SilentlyContinue
+			If ($ExServicePrincipal)
+			{	
+				#Remove Exchange Online Service Principal
+				Write-Verbose "Remove Exchange Online Service Principal"
+				$ExServicePrincipal | Remove-ServicePrincipal -Identity $ServicePrincipalDetails.AppId
+			}
+		}
+
+		#Remove AzureAD Application
+		Write-Verbose "Remove Enterprise Application"
+		$AADApps | Remove-MgApplication -ApplicationId $AppID
+	}
 }
