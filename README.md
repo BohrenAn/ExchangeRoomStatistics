@@ -1,4 +1,4 @@
-# ExchangeRoomStatisticsGraph
+# ExchangeRoomStatisticsGraph (MicrosoftGraph)
 Version 0.1 - 28.03.2022 Andres Bohren - Initial Version (Not Completed)
 
 Prerequisits
@@ -10,7 +10,7 @@ Prerequisits
 Get-RoomStatisticsGraph.ps1 -Startdate "01/01/2022" -EndDate "12/31/2022" [-Mailboxes <ArrayOfEmailAddresses>]
 ```
 
-# ExchangeRoomStatistics
+# ExchangeRoomStatistics (EWS)
 Version 1.0 - 21.07.2020 Andres Bohren - Initial Version
 
 Prerequisits

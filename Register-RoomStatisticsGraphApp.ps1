@@ -6,6 +6,7 @@
 # Requires "Exchange Administrator" to create the RBAC Permission
 #
 # 2023.05.01 - Initial Version - @AndresBohren
+# 2024.06.17 - DeleteAzureApplication - @m-hanisch
 ###############################################################################
 #Require the following Modules
 #Requires -Modules ExchangeOnlineManagement
