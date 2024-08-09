@@ -126,7 +126,7 @@ If ($CreateAzureApplication)
 			{	
 				#Create Exchange Online Service Principal
 				Write-Verbose "Create Exchange Online Service Principal"
-				$ExServicePrincipal = New-ServicePrincipal -AppId $ServicePrincipalDetails.AppId -ServiceId $ServicePrincipalDetails.Id -DisplayName "EXO Serviceprincipal $($ServicePrincipalDetails.Displayname)"
+				$ExServicePrincipal = New-ServicePrincipal -AppId $ServicePrincipalDetails.AppId -ObjectId $ServicePrincipalDetails.Id -DisplayName "EXO Serviceprincipal $($ServicePrincipalDetails.Displayname)"
 			}
 		}
 
@@ -142,13 +142,13 @@ If ($CreateAzureApplication)
 		
 		## Check Exchange Online Management Role Assignment
 		Write-Verbose "Check Exchange Online Management Role Assignment"
-		$ServiceId = $ExServicePrincipal.ServiceId
-		$MRA = Get-ManagementRoleAssignment  | Where-Object {$_.App -eq $ServiceId}
+		$ExObjectId = $ExServicePrincipal.ObjectId
+		$MRA = Get-ManagementRoleAssignment  | Where-Object {$_.App -eq $ExObjectId}
 		If ($Null -eq $MRA)
 		{
 			#Create Exchange Online Management Role Assignment
 			Write-Verbose "Create Exchange Online Management Role Assignment"
-			$MRA = New-ManagementRoleAssignment -App $ServiceId -Role "Application Calendars.Read" -CustomResourceScope "$ManagementScopeName"
+			$MRA = New-ManagementRoleAssignment -App $ExObjectId -Role "Application Calendars.Read" -CustomResourceScope "$ManagementScopeName"
 		} 
 		
 		
@@ -193,8 +193,8 @@ If ($DeleteAzureApplication)
 		## Check Exchange Online Management Role Assignment
 		Write-Verbose "Check Exchange Online Management Role Assignment"
 		$ExServicePrincipal = Get-ServicePrincipal | Where-Object {$_.AppId -eq "$AppID"} -ErrorAction SilentlyContinue
-		$ServiceId = $ExServicePrincipal.ServiceId
-		$MRA = Get-ManagementRoleAssignment  | Where-Object {$_.App -eq $ServiceId}
+		$ExObjectId = $ExServicePrincipal.ObjectId
+		$MRA = Get-ManagementRoleAssignment  | Where-Object {$_.App -eq $ExObjectId}
 		If ($MRA)
 		{
 			#Remove Exchange Online Management Role Assignment
